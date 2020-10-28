@@ -1,0 +1,52 @@
+---
+name: Build & Deploy to GitHub Page
+
+on:
+  push:
+    branches:
+     - 'master'
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: borales/actions-yarn@v2.0.0
+        with:
+          cmd: install
+      - uses: borales/actions-yarn@v2.0.0
+        with:
+          cmd: build
+      - uses: actions/upload-artifact@v2
+        with:
+          name: site
+          path: build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: alpine/git
+    steps:
+    - name: Download Artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: site
+    - name: Setup git
+      run: |
+        git config --global user.name "${{ secrets.GH_USERNAME }}"
+        git config --global user.email "${{ secrets.GH_EMAIL }}"
+    - name: Deploy to GitHub
+      run: |
+        git init && git add .
+        for try in $(seq 10); do
+          git commit -m "Build By GitHub Actions on $(date "+%Y-%m-%d %T")"
+          if git push -f "https://${{ secrets.DEPLOY_TOKEN }}@${{ secrets.GH_REPO }}" master:${{ secrets.GH_BRANCH }}; then
+            exit 0
+          else
+            sleep $(shuf -i 3-10 -n 1)
+          fi
+        done
+        exit 1
+...
